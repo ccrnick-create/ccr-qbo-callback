@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CCR · QuickBooks OAuth Callback</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+      --bg: #0f172a;
+      --card: #1e293b;
+      --border: #334155;
+      --text: #f1f5f9;
+      --muted: #94a3b8;
+      --accent: #d8ae79;
+      --accent-text: #0f172a;
+      --ok: #22c55e;
+      --err: #ef4444;
+      --code-bg: #0b1220;
+    }
+    @media (prefers-color-scheme: light) {
+      :root {
+        --bg: #f8fafc;
+        --card: #ffffff;
+        --border: #e2e8f0;
+        --text: #0f172a;
+        --muted: #64748b;
+        --code-bg: #f1f5f9;
+      }
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      padding: 24px;
+      line-height: 1.5;
+    }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 32px;
+      max-width: 720px;
+      width: 100%;
+      box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+    }
+    h1 { margin: 0 0 8px; font-size: 24px; font-weight: 700; }
+    .subtitle { color: var(--muted); margin: 0 0 28px; font-size: 15px; }
+    .status { display: inline-block; padding: 4px 12px; border-radius: 999px; font-size: 13px; font-weight: 600; margin-bottom: 16px; }
+    .status-ok { background: var(--ok); color: white; }
+    .status-err { background: var(--err); color: white; }
+    .field { margin-bottom: 20px; }
+    .field-label { font-size: 13px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 6px; }
+    .field-value {
+      font-family: "SF Mono", Menlo, Monaco, Consolas, monospace;
+      font-size: 14px;
+      background: var(--code-bg);
+      padding: 12px 14px;
+      border-radius: 8px;
+      word-break: break-all;
+      border: 1px solid var(--border);
+      position: relative;
+    }
+    .copy-btn {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      padding: 4px 10px;
+      font-size: 12px;
+      font-weight: 600;
+      background: var(--accent);
+      color: var(--accent-text);
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: opacity 0.2s;
+    }
+    .copy-btn:hover { opacity: 0.85; }
+    .copy-btn.copied { background: var(--ok); color: white; }
+    .instructions { font-size: 14px; color: var(--muted); margin-top: 24px; padding-top: 20px; border-top: 1px solid var(--border); }
+    .instructions code { background: var(--code-bg); padding: 2px 6px; border-radius: 4px; font-size: 12px; }
+    .error-box { padding: 16px; background: rgba(239, 68, 68, 0.1); border: 1px solid var(--err); border-radius: 8px; margin: 16px 0; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div id="status" class="status status-ok">Authorization captured</div>
+    <h1>QuickBooks OAuth Callback</h1>
+    <p class="subtitle">Intuit sent back the authorization details. Copy them into your terminal to finish the OAuth flow.</p>
+
+    <div id="ok-content">
+      <div class="field">
+        <div class="field-label">Authorization Code</div>
+        <div class="field-value" id="code-value">—<button class="copy-btn" data-target="code-value">Copy</button></div>
+      </div>
+      <div class="field">
+        <div class="field-label">Realm ID (Company ID)</div>
+        <div class="field-value" id="realm-value">—<button class="copy-btn" data-target="realm-value">Copy</button></div>
+      </div>
+      <div class="field">
+        <div class="field-label">State Token</div>
+        <div class="field-value" id="state-value">—<button class="copy-btn" data-target="state-value">Copy</button></div>
+      </div>
+    </div>
+
+    <div id="err-content" style="display:none;">
+      <div class="error-box">
+        <strong id="err-name">Unknown error</strong>
+        <div id="err-desc" style="margin-top:8px; font-size: 14px;"></div>
+      </div>
+    </div>
+
+    <div class="instructions">
+      <strong>Next step in the terminal:</strong><br>
+      When the OAuth setup script prompts for the authorization code, paste the Code value above. It'll also ask for the Realm ID — paste that too. Both values are single-use and expire within ~10 minutes.<br><br>
+      If you don't have a prompt waiting, this page arrived out of sequence — close it and start the OAuth flow from the terminal first.
+    </div>
+  </div>
+
+  <script>
+    (function() {
+      const params = new URLSearchParams(window.location.search);
+      const code = params.get('code');
+      const realmId = params.get('realmId');
+      const state = params.get('state');
+      const error = params.get('error');
+      const errorDesc = params.get('error_description');
+
+      const statusEl = document.getElementById('status');
+      const okContent = document.getElementById('ok-content');
+      const errContent = document.getElementById('err-content');
+
+      if (error) {
+        statusEl.textContent = 'Authorization failed';
+        statusEl.className = 'status status-err';
+        okContent.style.display = 'none';
+        errContent.style.display = 'block';
+        document.getElementById('err-name').textContent = error;
+        document.getElementById('err-desc').textContent = errorDesc || 'Intuit did not include an error description.';
+      } else if (code && realmId) {
+        // Set values with button preserved
+        function setField(id, val) {
+          const el = document.getElementById(id);
+          const btn = el.querySelector('.copy-btn');
+          el.textContent = val;
+          if (btn) el.appendChild(btn);
+        }
+        setField('code-value', code);
+        setField('realm-value', realmId);
+        setField('state-value', state || '(not provided)');
+      } else {
+        statusEl.textContent = 'No authorization data';
+        statusEl.className = 'status status-err';
+        okContent.style.display = 'none';
+        errContent.style.display = 'block';
+        document.getElementById('err-name').textContent = 'Missing parameters';
+        document.getElementById('err-desc').textContent = 'The URL did not contain the expected code and realmId query parameters. This page is meant to be hit by Intuit as the redirect URI of an OAuth 2.0 flow.';
+      }
+
+      document.querySelectorAll('.copy-btn').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+          const target = document.getElementById(btn.dataset.target);
+          const text = target.textContent.replace('Copy', '').replace('Copied!', '').trim();
+          navigator.clipboard.writeText(text).then(function() {
+            btn.textContent = 'Copied!';
+            btn.classList.add('copied');
+            setTimeout(function() { btn.textContent = 'Copy'; btn.classList.remove('copied'); }, 1500);
+          });
+        });
+      });
+    })();
+  </script>
+</body>
+</html>
